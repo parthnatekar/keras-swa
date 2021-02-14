@@ -64,13 +64,14 @@ class SWA(Callback):
 
         self.lr_record = []
         self.epochs = self.params.get('epochs')
+        print(self.params)
 
         if self.start_epoch >= self.epochs - 1:
             raise ValueError(
                 '"swa_start" attribute must be lower than "epochs".')
 
         self.init_lr = K.eval(self.model.optimizer.lr)
-
+        print(self.init_lr)
         # automatic swa_lr
         if self.swa_lr == 'auto':
             self.swa_lr = 0.1*self.init_lr
@@ -105,6 +106,11 @@ class SWA(Callback):
                       % (epoch + 1))
 
         if self.is_batch_norm_epoch:
+
+            if self.verbose > 0:
+                print('\nEpoch %05d: setting weights to swa weights' 
+                    % (epoch + 1))
+                
             self._set_swa_weights(epoch)
 
             if self.verbose > 0:
