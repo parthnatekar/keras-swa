@@ -4,6 +4,8 @@
 import keras.backend as K
 from keras.callbacks import Callback
 from keras.layers import BatchNormalization
+import json
+import numpy as np
 
 class SWA(Callback):
     """ Stochastic Weight Averging.
@@ -28,7 +30,8 @@ class SWA(Callback):
                  swa_lr2='auto',
                  swa_freq=1,
                  batch_size=None,
-                 verbose=0):
+                 verbose=0,
+                 checkpoint_save_path=None):
 
         super(SWA, self).__init__()
         self.start_epoch = start_epoch - 1
@@ -40,6 +43,7 @@ class SWA(Callback):
         self.swa_freq = swa_freq
         self.batch_size = batch_size
         self.verbose = verbose
+        self.checkpoint_save_path = checkpoint_save_path
 
         if start_epoch < 2:
             raise ValueError('"swa_start" attribute cannot be lower than 2.')
@@ -64,6 +68,7 @@ class SWA(Callback):
 
         self.lr_record = []
         self.epochs = self.params.get('epochs')
+        self.swa_variances = [np.zeros(w.shape) for w in self.model.get_weights()]
         print(self.params)
 
         if self.start_epoch >= self.epochs - 1:
@@ -99,6 +104,7 @@ class SWA(Callback):
             self._update_lr(epoch)
 
         if self.is_swa_start_epoch:
+            print('SWA Start:', epoch)
             self.swa_weights = self.model.get_weights()
 
             if self.verbose > 0:
@@ -112,6 +118,13 @@ class SWA(Callback):
                     % (epoch + 1))
 
             self._set_swa_weights(epoch)
+
+            if self.verbose > 0:
+                print('\nEpoch %05d: saving swa moments' 
+                    % (epoch + 1))
+            
+            np.save(self.checkpoint_save_path + '/swa_means.npy', self.swa_weights)
+            np.save(self.checkpoint_save_path + '/swa_vars.npy', self.swa_variances)
 
             if self.verbose > 0:
                 print('\nEpoch %05d: reinitializing batch normalization layers' 
@@ -155,8 +168,6 @@ class SWA(Callback):
         for batch_lr in self.lr_record:
             self.model.history.history.setdefault('lr', []).append(batch_lr)
 
-
-
     def _scheduler(self, epoch):
 
         swa_epoch = (epoch - self.start_epoch)
@@ -167,12 +178,12 @@ class SWA(Callback):
 
     def _average_weights(self, epoch):
 
-        swa_mean = [(swa_w * (epoch - self.start_epoch) + w)
-        /((epoch - self.start_epoch) + 1) for swa_w, w in zip(self.swa_weights, self.model.get_weights())]
-        swa_var = [(swa_w**2 * (epoch - self.start_epoch) + w**2)
-        /((epoch - self.start_epoch) + 1) for swa_w, w in zip(self.swa_weights, self.model.get_weights())]
-        
-        return (swa_mean, swa_var)
+        swa_means = [(swa_w * (epoch - self.start_epoch + 1) + w)
+        /((epoch - self.start_epoch) + 2) for swa_w, w in zip(self.swa_weights, self.model.get_weights())]
+        swa_vars = [swa_variance + (w - swa_w)*(w - swa_mean) 
+        for swa_variance, swa_w, swa_mean, w in zip(self.swa_variances, self.swa_weights, 
+            swa_means, self.model.get_weights())]
+        return (swa_means, swa_vars)
 
     def _update_lr(self, epoch, batch=None):
 
