@@ -34,11 +34,14 @@ class BN_Update(Callback):
         self.start_epoch = start_epoch - 1
         self.verbose = verbose
         self.checkpoint_save_path = checkpoint_save_path
+        self.swa_weights = swa_weights
 
-        if self.params.get('epochs') > 1:
-            raise ValueError('"total epochs" must be 1 for batch norm update run')
+        # if self.params.get('epochs') > 1:
+        #     raise ValueError('"total epochs" must be 1 for batch norm update run')
 
     def on_train_begin(self, logs=None):
+
+        self.epochs = self.params.get('epochs')
 
         self._check_batch_norm()
 
@@ -48,9 +51,13 @@ class BN_Update(Callback):
 
         if self.is_batch_norm_epoch:
 
+            if self.verbose > 0:
+                print('\nEpoch %05d: starting batch normalization update' 
+                    % (epoch + 1))
+
             K.set_value(self.model.optimizer.lr, 0)
 
-            self.model.set_weights(swa_weights)
+            self.model.set_weights(self.swa_weights)
 
             if self.verbose > 0:
                     print('\nEpoch %05d: reinitializing batch normalization layers' 

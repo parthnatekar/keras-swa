@@ -104,7 +104,6 @@ class SWA(Callback):
             self._update_lr(epoch)
 
         if self.is_swa_start_epoch:
-            print('SWA Start:', epoch)
             self.swa_weights = self.model.get_weights()
 
             if self.verbose > 0:
